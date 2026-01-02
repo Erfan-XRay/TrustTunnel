@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Version Information ---
-SCRIPT_VERSION="0.9.0"
+SCRIPT_VERSION="0.7.4"
 TRUST_TUNNEL_VERSION="1.5.0"
 
 # --- System Check ---
@@ -57,7 +57,7 @@ header() {
     echo -e "${B_CYAN}   |   |  |   _|  |  |__${RESET}${B_PURPLE}|   |  |  |  |     |     |  -__|  |${RESET}"
     echo -e "${B_CYAN}   |___|  |__| |_____|__|${RESET}${B_PURPLE}   |  |_____|__|__|__|__|_____|__|${RESET}"
     echo -e "${B_CYAN}                         ${RESET}${B_PURPLE}                                    ${RESET}"
-    echo -e "         ${B_WHITE}TrustTunnel Manager ${B_YELLOW}v${TRUST_TUNNEL_VERSION}${RESET} | ${B_GREEN}Script v${SCRIPT_VERSION}${RESET}"
+    echo -e "         ${B_WHITE}TrustTunnel Manager ${B_YELLOW}v${TRUST_TUNNEL_VERSION}${RESET} | ${B_GREEN}RSTun v${SCRIPT_VERSION}${RESET}"
     echo ""
 }
 
