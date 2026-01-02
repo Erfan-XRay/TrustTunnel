@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Version Information ---
-SCRIPT_VERSION="0.9.8"
+SCRIPT_VERSION="1.0.0"
 TRUST_TUNNEL_VERSION="1.5.0"
 
 # --- System Check ---
@@ -132,7 +132,59 @@ pause() {
     read -r
 }
 
-# --- Core Business Logic (Simplified for brevity, keeping port management) ---
+# --- Installation & Core Actions ---
+
+install_trusttunnel_action() {
+    header
+    echo -e "${B_GREEN}📦 Install TrustTunnel Core${RESET}"
+    divider
+    info "Downloading latest binaries..."
+    local arch=$(uname -m)
+    local filename="rstun-linux-x86_64.tar.gz"
+    [[ "$arch" == "aarch64" ]] && filename="rstun-linux-aarch64.tar.gz"
+    
+    if wget -q --show-progress "https://github.com/neevek/rstun/releases/download/v0.7.4/$filename" -O "$filename"; then
+        rm -rf rstun && tar -xzf "$filename" && mv "${filename%.tar.gz}" rstun
+        chmod +x rstun/* && rm "$filename"
+        success "Installation complete."
+    else
+        error "Download failed."
+    fi
+    pause
+}
+
+add_server_generic() {
+    local type="$1"
+    local s_name="trusttunnel.service"
+    [[ "$type" == "direct" ]] && s_name="trusttunnel-direct.service"
+    
+    header
+    echo -e "${B_GREEN}➕ Add $type Server${RESET}"
+    divider
+    ask "Listen Port" "6060"; read -r lport; lport=${lport:-6060}
+    ask "Password"; read -r pass
+    [[ -z "$pass" ]] && { error "Password is required!"; pause; return; }
+    
+    info "Configuring systemd service..."
+    local exec_cmd="$(pwd)/rstun/rstund --addr 0.0.0.0:$lport --password \"$pass\" --tcp-upstream 8800 --udp-upstream 8800"
+    
+    sudo bash -c "cat > /etc/systemd/system/$s_name" <<EOF
+[Unit]
+Description=TrustTunnel $type Server
+After=network.target
+[Service]
+Type=simple
+ExecStart=$exec_cmd
+Restart=always
+User=$(whoami)
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo systemctl daemon-reload && sudo systemctl enable "$s_name" && sudo systemctl restart "$s_name"
+    success "Server is running!"; pause
+}
+
+# --- Port Management ---
 
 manage_client_ports() {
     local type="$1"
@@ -194,7 +246,6 @@ manage_client_ports() {
                 ask "Type (tcp/udp/both)" "both"; read -r proto; proto=${proto:-both}
                 [[ "$proto" == "tcp" || "$proto" == "both" ]] && tcp_ports+=("$new_p")
                 [[ "$proto" == "udp" || "$proto" == "both" ]] && udp_ports+=("$new_p")
-                # Deduplicate
                 tcp_ports=($(echo "${tcp_ports[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
                 udp_ports=($(echo "${udp_ports[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
                 ;;
@@ -258,18 +309,36 @@ settings_menu() {
     save_config; success "Saved."; sleep 1
 }
 
-# (Other actions like install, add_server, etc. remain logically the same as previous stable version)
-# Including them in the final assembly...
+manage_services_menu() {
+    local type="$1"
+    while true; do
+        header
+        echo -e "${B_CYAN}🔧 Manage $type Tunnel${RESET}"
+        divider
+        echo -e " 1) Add/Update Server"
+        echo -e " 2) Manage Client Ports"
+        echo -e " 3) View Logs"
+        echo -e " 0) Back"
+        echo ""
+        ask "Option"
+        read -r m_opt
+        case $m_opt in
+            1) add_server_generic "$type" ;;
+            2) manage_client_ports "$type" ;;
+            3) journalctl -f -u "trusttunnel*" ;;
+            0) return ;;
+        esac
+    done
+}
 
 # --- Main Entry ---
 
 load_config
-# perform_initial_setup code here...
 
 while true; do
     header
     
-    # --- New Optimized Sys Info Bar ---
+    # --- Live Sys Info Bar ---
     echo -e "${B_BLUE}┌─ Sys Info ────────────────────────────────────────────────────────┐${RESET}"
     echo -ne "${B_BLUE}│${RESET} ${ICON_NET} IP: ${B_WHITE}$(get_server_ipv4)${RESET}"
     echo -ne "  ${ICON_SRV} SVR: $(get_server_status)"
@@ -278,19 +347,11 @@ while true; do
     echo -e "${B_BLUE}└───────────────────────────────────────────────────────────────────┘${RESET}"
     echo ""
     
-    # Mode Header
-    case $PREFERRED_VIEW in
-        "ALL")     echo -e "  ${B_CYAN}MAIN MENU (Hybrid Mode)${RESET}" ;;
-        "REVERSE") echo -e "  ${B_YELLOW}MAIN MENU (Reverse Focused)${RESET}" ;;
-        "DIRECT")  echo -e "  ${B_YELLOW}MAIN MENU (Direct Focused)${RESET}" ;;
-    esac
-    echo ""
-
     # Dynamic Menu Building
     if [[ "$PREFERRED_VIEW" == "ALL" ]]; then
         echo -e "  ${B_WHITE}1)${RESET} Install Core      ${B_WHITE}4)${RESET} Certificates"
         echo -e "  ${B_WHITE}2)${RESET} Reverse Tunnel    ${B_WHITE}5)${RESET} Settings"
-        echo -e "  ${B_WHITE}3)${RESET} Direct Tunnel     ${B_WHITE}6)${RESET} Cron & Tools"
+        echo -e "  ${B_WHITE}3)${RESET} Direct Tunnel     ${B_WHITE}6)${RESET} Uninstall"
         echo -e "                     ${B_WHITE}0)${RESET} Exit"
     elif [[ "$PREFERRED_VIEW" == "REVERSE" ]]; then
         echo -e "  ${B_WHITE}1)${RESET} Install Core      ${B_WHITE}4)${RESET} Cron Jobs"
@@ -308,20 +369,24 @@ while true; do
     read -r opt
     
     case $opt in
-        1) # Install logic... 
+        1) install_trusttunnel_action ;;
+        2) 
+           if [[ "$PREFERRED_VIEW" == "DIRECT" ]]; then
+               manage_services_menu "direct"
+           else
+               manage_services_menu "reverse"
+           fi
            ;;
-        2) if [[ "$PREFERRED_VIEW" == "DIRECT" ]]; then # Manage Direct
-              echo "Direct Menu..."
-           else # Manage Reverse
-              echo "Reverse Menu..."
-           fi ;;
-        # ... Other cases ...
+        3) 
+           if [[ "$PREFERRED_VIEW" == "ALL" ]]; then
+               manage_services_menu "direct"
+           else
+               echo "Certificates logic here..."
+               pause
+           fi
+           ;;
         5) settings_menu ;;
         0) exit 0 ;;
+        *) error "Invalid selection"; sleep 1 ;;
     esac
-    
-    # For demo purposes, keeping the menu loop functional. 
-    # Real script would call the full functions defined in previous versions.
-    info "Function called. Returning to menu..."
-    sleep 1
 done
