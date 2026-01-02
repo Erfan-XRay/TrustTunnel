@@ -2,7 +2,7 @@
 
 # --- Version Information ---
 RSTUN_VERSION="0.7.4"
-TRUST_TUNNEL_VERSION="1.5.0"
+TRUST_TUNNEL_VERSION="3.0.0"
 AUTHOR="@Erfan_XRay"
 GITHUB_REPO="https://github.com/Erfan-XRay/TrustTunnel"
 
