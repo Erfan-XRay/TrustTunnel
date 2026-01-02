@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Version Information ---
-SCRIPT_VERSION="0.7.5"
+RSTUN_VERSION="0.7.4"
 TRUST_TUNNEL_VERSION="1.5.0"
 AUTHOR="@Erfan_XRay"
 GITHUB_REPO="https://github.com/Erfan-XRay/TrustTunnel"
@@ -23,7 +23,6 @@ WHITE='\033[0;37m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# Bright variations
 B_RED='\033[1;31m'
 B_GREEN='\033[1;32m'
 B_YELLOW='\033[1;33m'
@@ -38,7 +37,6 @@ ICON_ERR="❌"
 ICON_INFO="ℹ️ "
 ICON_WARN="⚠️ "
 ICON_Q="❓"
-ICON_GEAR="⚙️ "
 ICON_LINK="🔗"
 ICON_TG="✈️ "
 
@@ -51,20 +49,22 @@ SETUP_MARKER_FILE="/var/lib/trusttunnel/.setup_complete"
 
 header() {
     clear
+    # Logo using FIGlet
     if command -v figlet >/dev/null 2>&1; then
         echo -e "${B_CYAN}"
         figlet -f slant "TrustTunnel"
         echo -e "${RESET}"
     else
+        # Fallback ASCII Logo
         echo -e "${B_CYAN}  _______               __${RESET}${B_PURPLE}_______                       __ ${RESET}"
         echo -e "${B_CYAN} |_   _|.----.--.--|  |${RESET}${B_PURPLE}_   _|.--.--.-----.-----.----.|  |${RESET}"
         echo -e "${B_CYAN}   |   |  |   _|  |  |__${RESET}${B_PURPLE}|   |  |  |  |     |     |  -__|  |${RESET}"
         echo -e "${B_CYAN}   |___|  |__| |_____|__|${RESET}${B_PURPLE}   |  |_____|__|__|__|__|_____|__|${RESET}"
     fi
     
-    echo -e "${B_WHITE}TrustTunnel Manager ${B_YELLOW}v${TRUST_TUNNEL_VERSION}${RESET} | ${B_GREEN}RSTun v${SCRIPT_VERSION}${RESET}"
-    echo -e "${B_BLUE}${ICON_LINK} GitHub: ${B_WHITE}${GITHUB_REPO}${RESET}"
-    echo -e "${B_BLUE}${ICON_TG} Telegram: ${B_WHITE}${AUTHOR}${RESET}"
+    echo -e " ${B_WHITE}TrustTunnel Manager ${B_YELLOW}v${TRUST_TUNNEL_VERSION}${RESET} | ${B_GREEN}RSTun v${RSTUN_VERSION}${RESET}"
+    echo -e " ${B_BLUE}${ICON_LINK} Project: ${B_WHITE}${GITHUB_REPO}${RESET}"
+    echo -e " ${B_BLUE}${ICON_TG} Telegram: ${B_WHITE}${AUTHOR}${RESET}"
     divider
 }
 
@@ -103,7 +103,7 @@ get_server_ipv4() {
 
 check_rstun_status() {
   if [ -f "rstun/rstund" ] || [ -f "rstun/rstunc" ]; then
-    echo -e "${B_GREEN}Installed${RESET}"
+    echo -e "${B_GREEN}Installed (v$RSTUN_VERSION)${RESET}"
   else
     echo -e "${B_RED}Not Installed${RESET}"
   fi
@@ -241,7 +241,7 @@ uninstall_trusttunnel_action() {
 
 install_trusttunnel_action() {
     header
-    echo -e "${B_GREEN}📦 Install TrustTunnel Core${RESET}"
+    echo -e "${B_GREEN}📦 Install TrustTunnel Core (v$RSTUN_VERSION)${RESET}"
     divider
 
     if [ -d "rstun" ]; then
@@ -252,7 +252,7 @@ install_trusttunnel_action() {
     info "Detecting architecture..."
     local arch=$(uname -m)
     local filename=""
-    local url_base="https://github.com/neevek/rstun/releases/download/v0.7.4"
+    local url_base="https://github.com/neevek/rstun/releases/download/v$RSTUN_VERSION"
     
     case "$arch" in
         "x86_64") filename="rstun-linux-x86_64.tar.gz" ;;
@@ -270,12 +270,13 @@ install_trusttunnel_action() {
     if wget -q --show-progress "$url_base/$filename" -O "$filename"; then
         success "Downloaded."
         tar -xzf "$filename"
-        mv "${filename%.tar.gz}" rstun
+        local extracted_dir=$(tar -tf "$filename" | head -1 | cut -f1 -d"/")
+        mv "$extracted_dir" rstun
         chmod +x rstun/*
         rm "$filename"
-        success "Installed successfully!"
+        success "Installed version $RSTUN_VERSION successfully!"
     else
-        error "Download failed. Please check connection."
+        error "Download failed. Check your internet or GitHub availability."
     fi
     pause
 }
@@ -322,7 +323,7 @@ add_server_generic() {
                 cert_args="--cert \"$certs_dir/$domain/fullchain.pem\" --key \"$certs_dir/$domain/privkey.pem\""
                 success "Selected: $domain"
             else
-                error "No certificates found in $certs_dir"
+                error "No certificates found. Run Certificate Manager first."
                 pause; return
             fi
         else
@@ -458,6 +459,89 @@ EOF
     pause
 }
 
+manage_ports_action() {
+    local type="$1"
+    local service_name="$2"
+    local prefix="trusttunnel-"
+    [[ "$type" == "direct" ]] && prefix="trusttunnel-direct-client-"
+
+    header
+    echo -e "${B_PURPLE}⚙️  Manage Ports for $service_name${RESET}"
+    divider
+
+    local service_path="/etc/systemd/system/${service_name}.service"
+    if [ ! -f "$service_path" ]; then
+        error "Service file not found."
+        pause; return
+    fi
+
+    # Extract mappings from service file
+    # rstunc uses --tcp-mappings "M1,M2" and --udp-mappings "M1,M2"
+    local current_exec=$(grep "ExecStart=" "$service_path" | sed 's/ExecStart=//')
+    local tcp_maps=$(echo "$current_exec" | grep -oP '(?<=--tcp-mappings\s")[^"]+')
+    local udp_maps=$(echo "$current_exec" | grep -oP '(?<=--udp-mappings\s")[^"]+')
+
+    # Convert mapping strings to arrays
+    IFS=',' read -r -a tcp_arr <<< "$tcp_maps"
+    IFS=',' read -r -a udp_arr <<< "$udp_maps"
+
+    echo -e "${B_WHITE}Current Mappings:${RESET}"
+    echo -e "TCP: ${B_YELLOW}${tcp_maps:-None}${RESET}"
+    echo -e "UDP: ${B_YELLOW}${udp_maps:-None}${RESET}"
+    echo ""
+    echo -e "${B_WHITE}1)${RESET} Add New Port"
+    echo -e "${B_WHITE}2)${RESET} Remove Port"
+    echo -e "${B_WHITE}0)${RESET} Back"
+    echo ""
+    ask "Select"
+    read -r port_opt
+
+    case $port_opt in
+        1)
+            ask "New Port to Forward"
+            read -r p
+            local new_m=""
+            if [[ "$type" == "direct" ]]; then
+                new_m="OUT^0.0.0.0:$p^$p"
+            else
+                new_m="IN^0.0.0.0:$p^0.0.0.0:$p"
+            fi
+            
+            # Append to lists
+            [[ -z "$tcp_maps" ] ] && tcp_maps="$new_m" || tcp_maps="$tcp_maps,$new_m"
+            [[ -z "$udp_maps" ] ] && udp_maps="$new_m" || udp_maps="$udp_maps,$new_m"
+            ;;
+        2)
+            # Combine unique ports for selection
+            local all_ports=$(echo "$tcp_maps,$udp_maps" | tr ',' '\n' | grep -oP '\d+$' | sort -u)
+            if [ -z "$all_ports" ]; then warn "No ports to remove."; pause; return; fi
+            
+            mapfile -t ports_list <<< "$all_ports"
+            local i=1
+            for p in "${ports_list[@]}"; do echo "$i) Port $p"; ((i++)); done
+            ask "Select Port to REMOVE"
+            read -r p_choice
+            local p_val="${ports_list[$((p_choice-1))]}"
+            
+            # Filter arrays
+            tcp_maps=$(echo "$tcp_maps" | tr ',' '\n' | grep -v "$p_val$" | paste -sd "," -)
+            udp_maps=$(echo "$udp_maps" | tr ',' '\n' | grep -v "$p_val$" | paste -sd "," -)
+            ;;
+        0) return ;;
+        *) return ;;
+    esac
+
+    # Update Service File
+    local new_exec=$(echo "$current_exec" | sed -E "s/--tcp-mappings\s+\"[^\"]*\"/--tcp-mappings \"$tcp_maps\"/")
+    new_exec=$(echo "$new_exec" | sed -E "s/--udp-mappings\s+\"[^\"]*\"/--udp-mappings \"$udp_maps\"/")
+    
+    sudo sed -i "s|^ExecStart=.*|ExecStart=$new_exec|" "$service_path"
+    sudo systemctl daemon-reload
+    sudo systemctl restart "$service_name"
+    success "Ports updated and service restarted!"
+    pause
+}
+
 cert_menu() {
     while true; do
         header
@@ -493,7 +577,7 @@ cert_menu() {
 perform_initial_setup() {
     if [ -f "$SETUP_MARKER_FILE" ]; then return 0; fi
     header
-    info "Installing dependencies (figlet, certbot, etc.)..."
+    info "Installing dependencies..."
     sudo apt update && sudo apt install -y build-essential curl pkg-config libssl-dev git figlet certbot cron wget
     
     sudo mkdir -p "$(dirname "$SETUP_MARKER_FILE")"
@@ -523,8 +607,9 @@ manage_services_menu() {
         echo ""
         echo -e "${B_PURPLE}CLIENTS:${RESET}"
         echo -e " ${B_WHITE}4)${RESET} Add New Client"
-        echo -e " ${B_WHITE}5)${RESET} Client Logs"
-        echo -e " ${B_WHITE}6)${RESET} Delete Client"
+        echo -e " ${B_WHITE}5)${RESET} Manage Ports"
+        echo -e " ${B_WHITE}6)${RESET} Client Logs"
+        echo -e " ${B_WHITE}7)${RESET} Delete Client"
         echo ""
         echo -e " ${B_WHITE}0)${RESET} Back"
         echo ""
@@ -548,10 +633,17 @@ manage_services_menu() {
                 mapfile -t clients < <(systemctl list-units --type=service --all | grep "$srv_pattern" | awk '{print $1}' | sed 's/.service$//')
                 if [ ${#clients[@]} -eq 0 ]; then warn "No clients."; pause; continue; fi
                 local i=1; for c in "${clients[@]}"; do echo "$i) $c"; ((i++)); done
+                ask "Select client to manage ports"; read -r ci
+                manage_ports_action "$type" "${clients[$((ci-1))]}"
+                ;;
+            6)
+                mapfile -t clients < <(systemctl list-units --type=service --all | grep "$srv_pattern" | awk '{print $1}' | sed 's/.service$//')
+                if [ ${#clients[@]} -eq 0 ]; then warn "No clients."; pause; continue; fi
+                local i=1; for c in "${clients[@]}"; do echo "$i) $c"; ((i++)); done
                 ask "Select"; read -r ci
                 show_service_logs "${clients[$((ci-1))]}"
                 ;;
-            6)
+            7)
                 mapfile -t clients < <(systemctl list-units --type=service --all | grep "$srv_pattern" | awk '{print $1}' | sed 's/.service$//')
                 if [ ${#clients[@]} -eq 0 ]; then warn "No clients."; pause; continue; fi
                 local i=1; for c in "${clients[@]}"; do echo "$i) $c"; ((i++)); done
