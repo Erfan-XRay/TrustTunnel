@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- Version Information ---
-SCRIPT_VERSION="0.8.0"
+SCRIPT_VERSION="0.9.0"
 TRUST_TUNNEL_VERSION="1.5.0"
 
 # --- System Check ---
@@ -493,6 +493,169 @@ EOF
     [[ "$vlogs" =~ ^[Yy]$ ]] && show_service_logs "${service_name}"
 }
 
+manage_client_ports() {
+    local type="$1"
+    local srv_pattern="trusttunnel-"
+    if [[ "$type" == "direct" ]]; then srv_pattern="trusttunnel-direct-client-"; fi
+
+    # 1. Select Client
+    header
+    echo -e "${B_CYAN}🔧 Manage Ports for $type Client${RESET}"
+    divider
+    mapfile -t clients < <(systemctl list-units --type=service --all | grep "$srv_pattern" | awk '{print $1}' | sed 's/.service$//')
+    
+    if [ ${#clients[@]} -eq 0 ]; then
+        warn "No clients found."
+        pause; return
+    fi
+
+    local i=1
+    for c in "${clients[@]}"; do echo -e "${B_YELLOW}$i)${RESET} $c"; ((i++)); done
+    echo -e "${B_YELLOW}0)${RESET} Back"
+    echo ""
+    ask "Select Client"
+    read -r ci
+    
+    if [[ "$ci" -eq 0 || -z "${clients[$((ci-1))]}" ]]; then return; fi
+    local service_name="${clients[$((ci-1))]}"
+    local service_file="/etc/systemd/system/${service_name}.service"
+
+    # 2. Parse Config
+    if [ ! -f "$service_file" ]; then error "Service file not found!"; pause; return; fi
+    
+    local exec_line=$(grep '^ExecStart=' "$service_file" | cut -d= -f2-)
+    
+    # Extract params using grep -oP
+    local saddr=$(echo "$exec_line" | grep -oP '(?<=--server-addr ")[^"]*')
+    local pass=$(echo "$exec_line" | grep -oP '(?<=--password ")[^"]*')
+    local old_tcp=$(echo "$exec_line" | grep -oP '(?<=--tcp-mappings ")[^"]*')
+    local old_udp=$(echo "$exec_line" | grep -oP '(?<=--udp-mappings ")[^"]*')
+    
+    # Clean up empty vars
+    [ -z "$saddr" ] && error "Could not parse server address!" && pause && return
+    
+    # Temporary arrays to hold ports
+    local tcp_ports=()
+    local udp_ports=()
+    
+    # Populate arrays
+    IFS=',' read -ra ADDR <<< "$old_tcp"
+    for map in "${ADDR[@]}"; do
+        # Extract port from end of string
+        local p="${map##*:}"
+        [[ "$p" =~ ^[0-9]+$ ]] && tcp_ports+=("$p")
+    done
+    
+    IFS=',' read -ra ADDR <<< "$old_udp"
+    for map in "${ADDR[@]}"; do
+        local p="${map##*:}"
+        [[ "$p" =~ ^[0-9]+$ ]] && udp_ports+=("$p")
+    done
+
+    # 3. Edit Loop
+    while true; do
+        header
+        echo -e "${B_PURPLE}Editing: $service_name${RESET}"
+        echo -e "Server: $saddr"
+        divider
+        echo -e "${B_CYAN}Current Ports:${RESET}"
+        
+        echo -ne "${B_BLUE}[TCP]:${RESET} "
+        if [ ${#tcp_ports[@]} -eq 0 ]; then echo "None"; else echo "${tcp_ports[*]}"; fi
+        
+        echo -ne "${B_BLUE}[UDP]:${RESET} "
+        if [ ${#udp_ports[@]} -eq 0 ]; then echo "None"; else echo "${udp_ports[*]}"; fi
+        
+        echo ""
+        echo -e "${B_WHITE}1)${RESET} Add Port"
+        echo -e "${B_WHITE}2)${RESET} Remove Port"
+        echo -e "${B_WHITE}3)${RESET} Save & Restart"
+        echo -e "${B_WHITE}0)${RESET} Cancel"
+        echo ""
+        
+        ask "Select"
+        read -r action
+        
+        case $action in
+            1) # Add
+                ask "Port Number"
+                read -r new_p
+                if ! validate_port "$new_p"; then error "Invalid port"; sleep 1; continue; fi
+                ask "Type (tcp/udp/both)" "both"
+                read -r proto
+                proto=${proto:-both}
+                
+                if [[ "$proto" == "tcp" || "$proto" == "both" ]]; then
+                    if [[ ! " ${tcp_ports[*]} " =~ " ${new_p} " ]]; then tcp_ports+=("$new_p"); fi
+                fi
+                if [[ "$proto" == "udp" || "$proto" == "both" ]]; then
+                    if [[ ! " ${udp_ports[*]} " =~ " ${new_p} " ]]; then udp_ports+=("$new_p"); fi
+                fi
+                ;;
+            2) # Remove
+                ask "Port to remove"
+                read -r del_p
+                
+                # Rebuild arrays excluding del_p
+                local new_tcp=()
+                for p in "${tcp_ports[@]}"; do [[ "$p" != "$del_p" ]] && new_tcp+=("$p"); done
+                tcp_ports=("${new_tcp[@]}")
+                
+                local new_udp=()
+                for p in "${udp_ports[@]}"; do [[ "$p" != "$del_p" ]] && new_udp+=("$p"); done
+                udp_ports=("${new_udp[@]}")
+                ;;
+            3) # Save
+                # Reconstruct strings
+                local new_tcp_map=""
+                local new_udp_map=""
+                
+                for p in "${tcp_ports[@]}"; do
+                    local m=""
+                    if [[ "$type" == "direct" ]]; then m="OUT^0.0.0.0:$p^$p"; else m="IN^0.0.0.0:$p^0.0.0.0:$p"; fi
+                    if [ -z "$new_tcp_map" ]; then new_tcp_map="$m"; else new_tcp_map="$new_tcp_map,$m"; fi
+                done
+                
+                for p in "${udp_ports[@]}"; do
+                    local m=""
+                    if [[ "$type" == "direct" ]]; then m="OUT^0.0.0.0:$p^$p"; else m="IN^0.0.0.0:$p^0.0.0.0:$p"; fi
+                    if [ -z "$new_udp_map" ]; then new_udp_map="$m"; else new_udp_map="$new_udp_map,$m"; fi
+                done
+                
+                # Build Args
+                local args=""
+                if [ -n "$new_tcp_map" ]; then args="$args --tcp-mappings \"$new_tcp_map\""; fi
+                if [ -n "$new_udp_map" ]; then args="$args --udp-mappings \"$new_udp_map\""; fi
+                
+                local exec_cmd="$(pwd)/rstun/rstunc --server-addr \"$saddr\" --password \"$pass\" $args --quic-timeout-ms 1000 --tcp-timeout-ms 1000 --udp-timeout-ms 1000 --wait-before-retry-ms 3000"
+                
+                # Update Service File
+                sudo bash -c "cat > $service_file" <<EOF
+[Unit]
+Description=Reverse Tunnel Client - ${service_name#$srv_pattern}
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=$exec_cmd
+Restart=always
+RestartSec=5
+User=$(whoami)
+
+[Install]
+WantedBy=multi-user.target
+EOF
+                sudo systemctl daemon-reload
+                sudo systemctl restart "$service_name"
+                success "Configuration updated!"
+                pause
+                return
+                ;;
+            0) return ;;
+        esac
+    done
+}
+
 # --- Certificate Actions ---
 
 cert_menu() {
@@ -597,6 +760,7 @@ manage_services_menu() {
         echo -e " ${B_WHITE}6)${RESET} Client Logs"
         echo -e " ${B_WHITE}7)${RESET} Delete Client"
         echo -e " ${B_WHITE}8)${RESET} Schedule Restart (Client)"
+        echo -e " ${B_WHITE}9)${RESET} Manage Client Ports"
         echo ""
         echo -e "${B_WHITE}0)${RESET} Back"
         echo ""
@@ -646,6 +810,7 @@ manage_services_menu() {
                 ask "Select"; read -r ci
                 reset_timer "${clients[$((ci-1))]}"
                 ;;
+            9) manage_client_ports "$type" ;;
             0) return ;;
             *) error "Invalid"; pause ;;
         esac
@@ -689,4 +854,3 @@ while true; do
         *) error "Invalid option"; pause ;;
     esac
 done
-```
