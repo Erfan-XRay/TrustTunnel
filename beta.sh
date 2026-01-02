@@ -476,14 +476,9 @@ manage_ports_action() {
     fi
 
     # Extract mappings from service file
-    # rstunc uses --tcp-mappings "M1,M2" and --udp-mappings "M1,M2"
     local current_exec=$(grep "ExecStart=" "$service_path" | sed 's/ExecStart=//')
-    local tcp_maps=$(echo "$current_exec" | grep -oP '(?<=--tcp-mappings\s")[^"]+')
-    local udp_maps=$(echo "$current_exec" | grep -oP '(?<=--udp-mappings\s")[^"]+')
-
-    # Convert mapping strings to arrays
-    IFS=',' read -r -a tcp_arr <<< "$tcp_maps"
-    IFS=',' read -r -a udp_arr <<< "$udp_maps"
+    local tcp_maps=$(echo "$current_exec" | grep -oP '(?<=--tcp-mappings\s")[^"]+' || echo "")
+    local udp_maps=$(echo "$current_exec" | grep -oP '(?<=--udp-mappings\s")[^"]+' || echo "")
 
     echo -e "${B_WHITE}Current Mappings:${RESET}"
     echo -e "TCP: ${B_YELLOW}${tcp_maps:-None}${RESET}"
@@ -507,12 +502,11 @@ manage_ports_action() {
                 new_m="IN^0.0.0.0:$p^0.0.0.0:$p"
             fi
             
-            # Append to lists
-            [[ -z "$tcp_maps" ] ] && tcp_maps="$new_m" || tcp_maps="$tcp_maps,$new_m"
-            [[ -z "$udp_maps" ] ] && udp_maps="$new_m" || udp_maps="$udp_maps,$new_m"
+            # Update strings
+            if [[ -z "$tcp_maps" ]]; then tcp_maps="$new_m"; else tcp_maps="$tcp_maps,$new_m"; fi
+            if [[ -z "$udp_maps" ]]; then udp_maps="$new_m"; else udp_maps="$udp_maps,$new_m"; fi
             ;;
         2)
-            # Combine unique ports for selection
             local all_ports=$(echo "$tcp_maps,$udp_maps" | tr ',' '\n' | grep -oP '\d+$' | sort -u)
             if [ -z "$all_ports" ]; then warn "No ports to remove."; pause; return; fi
             
@@ -523,7 +517,6 @@ manage_ports_action() {
             read -r p_choice
             local p_val="${ports_list[$((p_choice-1))]}"
             
-            # Filter arrays
             tcp_maps=$(echo "$tcp_maps" | tr ',' '\n' | grep -v "$p_val$" | paste -sd "," -)
             udp_maps=$(echo "$udp_maps" | tr ',' '\n' | grep -v "$p_val$" | paste -sd "," -)
             ;;
@@ -531,11 +524,17 @@ manage_ports_action() {
         *) return ;;
     esac
 
-    # Update Service File
-    local new_exec=$(echo "$current_exec" | sed -E "s/--tcp-mappings\s+\"[^\"]*\"/--tcp-mappings \"$tcp_maps\"/")
-    new_exec=$(echo "$new_exec" | sed -E "s/--udp-mappings\s+\"[^\"]*\"/--udp-mappings \"$udp_maps\"/")
+    # Safely update the exec line
+    # If mappings become empty, this logic should ideally remove the flag, but we'll stick to updating for now
+    local updated_exec="$current_exec"
+    if [[ -n "$tcp_maps" ]]; then
+        updated_exec=$(echo "$updated_exec" | sed -E "s/--tcp-mappings\s+\"[^\"]*\"/--tcp-mappings \"$tcp_maps\"/")
+    fi
+    if [[ -n "$udp_maps" ]]; then
+        updated_exec=$(echo "$updated_exec" | sed -E "s/--udp-mappings\s+\"[^\"]*\"/--udp-mappings \"$udp_maps\"/")
+    fi
     
-    sudo sed -i "s|^ExecStart=.*|ExecStart=$new_exec|" "$service_path"
+    sudo sed -i "s|^ExecStart=.*|ExecStart=$updated_exec|" "$service_path"
     sudo systemctl daemon-reload
     sudo systemctl restart "$service_name"
     success "Ports updated and service restarted!"
