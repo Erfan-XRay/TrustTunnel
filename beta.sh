@@ -525,7 +525,7 @@ install_trusttunnel_action() {
       ;;
   esac
 
-  download_url="https://github.com/neevek/rstun/releases/download/release%2F0.7.4/${filename}"
+  download_url="https://github.com/neevek/rstun/releases/download/v0.7.4/${filename}"
 
   echo -e "${CYAN}Downloading $filename for $arch...${RESET}" # Downloading filename for arch...
   if wget -q --show-progress "$download_url" -O "$filename"; then
