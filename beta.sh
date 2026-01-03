@@ -2159,8 +2159,9 @@ while true; do
   figlet -f slant "TrustTunnel"
   echo -e "${BOLD_GREEN}"
   echo -e "${BOLD_GREEN}==========================================================${RESET}"
-  echo -e "${CYAN}Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel${RESET}"
-  echo -e "${CYAN}Telegram Channel => @Erfan_XRay${RESET}"
+  echo ""
+  echo -e "${CYAN}Developed by ErfanXRay => ${WHITE}https://github.com/Erfan-XRay/TrustTunnel${RESET}"
+  echo -e "${CYAN}Telegram Channel => ${WHITE}@Erfan_XRay${RESET}"
   echo ""
 
   # Get system information
