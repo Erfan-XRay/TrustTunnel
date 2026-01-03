@@ -2177,10 +2177,6 @@ while true; do
   echo -e "  ${CYAN}📦 RSTUN Status:${RESET} ${WHITE}$rstun_status${RESET}"
   echo -e "  ${CYAN}🏷️  Script Version:${RESET} ${WHITE}$script_version${RESET}"
   echo ""
-  draw_green_line
-  echo -e "${GREEN}|${RESET}      ${WHITE}TrustTunnel Main Menu${RESET}      ${GREEN}|${RESET}" # TrustTunnel Main Menu
-  draw_green_line
-  echo ""
 
   # Main Menu Options - Minimal Design
   echo -e "${BOLD_GREEN}📋 Available Options:${RESET}"
