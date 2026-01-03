@@ -2185,8 +2185,19 @@ while true; do
   echo -e "Telegram Channel => @Erfan_XRay"
   echo -e "\033[0m${WHITE}Reverse tunnel over QUIC ( Based on rstun project)${WHITE}${RESET}"
   echo ""
-  echo -e "${BOLD_GREEN}🚀 Welcome to TrustTunnel Manager!${RESET}"
-  echo -e "${WHITE}Your secure tunneling solution for connecting networks${RESET}"
+
+  # Get system information
+  local server_ipv4=$(hostname -I | awk '{print $1}')
+  local rstun_status="Not Installed"
+  if [ -f "rstun/rstund" ]; then
+    rstun_status="✅ Installed"
+  fi
+  local script_version="3.0.0"
+
+  echo -e "${BOLD_GREEN}📊 System Information:${RESET}"
+  echo -e "  ${CYAN}🌐 Server IPv4:${RESET} ${WHITE}$server_ipv4${RESET}"
+  echo -e "  ${CYAN}📦 RSTUN Status:${RESET} ${WHITE}$rstun_status${RESET}"
+  echo -e "  ${CYAN}🏷️  Script Version:${RESET} ${WHITE}$script_version${RESET}"
   echo ""
   draw_green_line
   echo -e "${GREEN}|${RESET}      ${WHITE}TrustTunnel Main Menu${RESET}      ${GREEN}|${RESET}" # TrustTunnel Main Menu
