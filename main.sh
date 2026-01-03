@@ -844,25 +844,30 @@ add_new_client_action() {
 
   echo -e "${CYAN}🌐 Server Connection Details:${RESET}"
   echo -e "${WHITE}Specify the reverse tunnel server this client should connect to${RESET}"
-  echo -e "${YELLOW}Format: hostname:port or IP:port${RESET}"
-  echo -e "${YELLOW}Examples: server.yourdomain.com:6060, 192.168.1.100:6060${RESET}"
   echo ""
 
-  # Validate Server Address
-  local server_addr
+  # Get server IP/domain first
   while true; do
-    read -p "👉 Enter server address and port: " server_addr_input
-    # Split into host and port for validation
-    local host_part=$(echo "$server_addr_input" | cut -d':' -f1)
-    local port_part=$(echo "$server_addr_input" | cut -d':' -f2)
-
-    if validate_host "$host_part" && validate_port "$port_part"; then
-      server_addr="$server_addr_input"
+    read -p "👉 Enter server IP or domain: " server_host
+    if validate_host "$server_host"; then
       break
     else
-      print_error "❌ Invalid server address format. Use 'hostname:port' or 'IP:port' (e.g., server.example.com:6060)."
+      print_error "❌ Invalid IP address or domain name."
     fi
   done
+
+  # Get server port
+  while true; do
+    read -p "👉 Enter server port: " server_port
+    if validate_port "$server_port"; then
+      break
+    else
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
+    fi
+  done
+
+  # Combine host and port
+  server_addr="$server_host:$server_port"
   echo ""
 
   echo -e "${CYAN}📡 Tunnel Protocol Configuration:${RESET}"
@@ -881,37 +886,70 @@ add_new_client_action() {
 
   echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}"
   echo -e "${WHITE}Specify which local ports to tunnel to the remote server${RESET}"
-  echo -e "${YELLOW}Each port will be accessible from the server side${RESET}"
+  echo -e "${YELLOW}Examples: 80,443,8080 or 80-90,443,8080-8090${RESET}"
   echo ""
 
-  local port_count
   while true; do
-    read -p "👉 How many ports to tunnel? " port_count_input
-    if [[ "$port_count_input" =~ ^[0-9]+$ ]] && (( port_count_input >= 0 )); then
-      port_count=$port_count_input
-      break
-    else
-      print_error "❌ Invalid input. Please enter 0 or a positive number for the port count."
+    read -p "👉 Enter ports (comma-separated or ranges): " ports_input
+    if [ -z "$ports_input" ]; then
+      print_error "❌ Port list cannot be empty."
+      continue
     fi
-  done
-  echo ""
-  
-  mappings=""
-  for ((i=1; i<=port_count; i++)); do
-    local port
-    while true; do
-      read -p "👉 Enter Port #$i (1-65535): " port_input
-      if validate_port "$port_input"; then
-        port="$port_input"
-        break
+
+    # Parse the input and validate ports
+    ports_valid=true
+    mappings=""
+
+    # Split by comma first
+    IFS=',' read -ra port_groups <<< "$ports_input"
+    for port_group in "${port_groups[@]}"; do
+      port_group=$(echo "$port_group" | xargs) # Trim whitespace
+
+      if [[ "$port_group" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        # It's a range like 80-90
+        start_port="${BASH_REMATCH[1]}"
+        end_port="${BASH_REMATCH[2]}"
+
+        if ! validate_port "$start_port" || ! validate_port "$end_port"; then
+          print_error "❌ Invalid port range: $port_group"
+          ports_valid=false
+          break
+        fi
+
+        if (( start_port > end_port )); then
+          print_error "❌ Invalid range: start port must be less than end port in $port_group"
+          ports_valid=false
+          break
+        fi
+
+        # Add all ports in the range
+        for ((port=start_port; port<=end_port; port++)); do
+          mapping="IN^0.0.0.0:$port^0.0.0.0:$port"
+          [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
+        done
+      elif [[ "$port_group" =~ ^[0-9]+$ ]]; then
+        # It's a single port
+        if validate_port "$port_group"; then
+          mapping="IN^0.0.0.0:$port_group^0.0.0.0:$port_group"
+          [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
+        else
+          print_error "❌ Invalid port number: $port_group"
+          ports_valid=false
+          break
+        fi
       else
-        print_error "❌ Invalid port number. Port must be between 1 and 65535."
+        print_error "❌ Invalid port format: $port_group (use single ports or ranges like 80-90)"
+        ports_valid=false
+        break
       fi
     done
-    mapping="IN^0.0.0.0:$port^0.0.0.0:$port"
-    [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
-    echo ""
+
+    if [ "$ports_valid" = true ]; then
+      break
+    fi
   done
+
+  echo ""
 
   # Determine the mapping arguments based on the tunnel_mode
   mapping_args=""
@@ -1726,63 +1764,45 @@ add_new_direct_client_action() {
   fi
 
   echo -e "${CYAN}🌐 Server Connection Details:${RESET}"
-  
-  local use_ipv6_server_input
-  local server_addr_input # The raw input from the user
-  local server_host_part  # The host part extracted (e.g., example.com, 192.168.1.1, 2001:db8::1)
-  local server_port_part  # The port part extracted
-  local final_server_addr # The final string to be used in ExecStart
-
-  echo -e "👉 ${WHITE}Do you want to connect to the server using IPv6? (Y/n, default: N):${RESET} "
-  read -p "" use_ipv6_server_input
-  use_ipv6_server_input=${use_ipv6_server_input:-N} # Default to N if empty
-
-  if [[ "$use_ipv6_server_input" =~ ^[Yy]$ ]]; then
-    print_success "Client will attempt to connect to server via IPv6. Please enter address in '[IPv6_address]:port' or 'domain:port' format."
-  else
-    print_success "Client will attempt to connect to server via IPv4/Domain. Please enter address in 'host:port' format."
-  fi
+  echo -e "${WHITE}Specify the direct tunnel server this client should connect to${RESET}"
   echo ""
 
-  while true; do
-    echo -e "👉 ${WHITE}Enter server address and port:${RESET} "
-    read -p "" server_addr_input
+  # Ask for IPv6 preference
+  local use_ipv6_server_input
+  read -p "👉 Use IPv6 connection? (y/N): " use_ipv6_server_input
+  use_ipv6_server_input=${use_ipv6_server_input:-N}
 
-    # Try to parse as IPv6 literal first (e.g., [::1]:8800)
-    if [[ "$server_addr_input" =~ ^\[(.*)\]:([0-9]+)$ ]]; then
-        server_host_part="${BASH_REMATCH[1]}"
-        server_port_part="${BASH_REMATCH[2]}"
-        # Ensure user chose IPv6 if they entered IPv6 format
-        if [[ ! "$use_ipv6_server_input" =~ ^[Yy]$ ]]; then
-            print_error "You selected IPv4, but entered an IPv6 address in bracket format. Please re-enter or change your IPv6 choice."
-            continue
-        fi
-    # Then try to parse as standard host:port (e.g., example.com:8800, 192.168.1.1:8800)
-    elif [[ "$server_addr_input" =~ ^([^:]+):([0-9]+)$ ]]; then
-        server_host_part="${BASH_REMATCH[1]}"
-        server_port_part="${BASH_REMATCH[2]}"
-        # Ensure user chose IPv4/Domain if they entered that format
-        if [[ "$use_ipv6_server_input" =~ ^[Yy]$ ]]; then
-            # If user chose IPv6 but entered a non-bracketed address, it could be a domain that resolves to IPv6.
-            # We'll allow this for flexibility, but warn if it's clearly an IPv4 address.
-            if [[ "$server_host_part" =~ ^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$ ]]; then
-                print_error "You selected IPv6, but entered an IPv4 address. Please re-enter in '[IPv6_address]:port' format or change your IPv6 choice."
-                continue
-            fi
-        fi
+  # Get server IP/domain first
+  while true; do
+    if [[ "$use_ipv6_server_input" =~ ^[Yy]$ ]]; then
+      read -p "👉 Enter server IPv6 address or domain: " server_host
+      # For IPv6, wrap in brackets if it's a literal IPv6 address
+      if [[ "$server_host" =~ ^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]))$ ]]; then
+        server_host="[$server_host]"
+      fi
     else
-        print_error "Invalid server address format. Please use 'host:port' or '[IPv6_address]:port' as appropriate."
-        continue
+      read -p "👉 Enter server IP or domain: " server_host
     fi
 
-    # Validate the extracted host and port parts
-    if validate_host "$server_host_part" && validate_port "$server_port_part"; then
-        final_server_addr="$server_addr_input" # Use the input as is, it's already correctly formatted
-        break
+    if validate_host "$server_host"; then
+      break
     else
-        print_error "Invalid host or port in the provided address. Please ensure the host is a valid IP/domain and port is 1-65535."
+      print_error "❌ Invalid IP address or domain name."
     fi
   done
+
+  # Get server port
+  while true; do
+    read -p "👉 Enter server port: " server_port
+    if validate_port "$server_port"; then
+      break
+    else
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
+    fi
+  done
+
+  # Combine host and port
+  final_server_addr="$server_host:$server_port"
   echo ""
 
   echo -e "${CYAN}📡 Tunnel Protocol Configuration:${RESET}"
@@ -1801,37 +1821,70 @@ add_new_direct_client_action() {
 
   echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}"
   echo -e "${WHITE}Specify which local ports to tunnel to the remote server${RESET}"
-  echo -e "${YELLOW}Each port will be accessible from the server side${RESET}"
+  echo -e "${YELLOW}Examples: 80,443,8080 or 80-90,443,8080-8090${RESET}"
   echo ""
 
-  local port_count
   while true; do
-    read -p "👉 How many ports to tunnel? " port_count_input
-    if [[ "$port_count_input" =~ ^[0-9]+$ ]] && (( port_count_input >= 0 )); then
-      port_count=$port_count_input
-      break
-    else
-      print_error "❌ Invalid input. Please enter 0 or a positive number for the port count."
+    read -p "👉 Enter ports (comma-separated or ranges): " ports_input
+    if [ -z "$ports_input" ]; then
+      print_error "❌ Port list cannot be empty."
+      continue
     fi
-  done
-  echo ""
-  
-  mappings=""
-  for ((i=1; i<=port_count; i++)); do
-    local port
-    while true; do
-      read -p "👉 Enter Port #$i (1-65535): " port_input
-      if validate_port "$port_input"; then
-        port="$port_input"
-        break
+
+    # Parse the input and validate ports
+    ports_valid=true
+    mappings=""
+
+    # Split by comma first
+    IFS=',' read -ra port_groups <<< "$ports_input"
+    for port_group in "${port_groups[@]}"; do
+      port_group=$(echo "$port_group" | xargs) # Trim whitespace
+
+      if [[ "$port_group" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+        # It's a range like 80-90
+        start_port="${BASH_REMATCH[1]}"
+        end_port="${BASH_REMATCH[2]}"
+
+        if ! validate_port "$start_port" || ! validate_port "$end_port"; then
+          print_error "❌ Invalid port range: $port_group"
+          ports_valid=false
+          break
+        fi
+
+        if (( start_port > end_port )); then
+          print_error "❌ Invalid range: start port must be less than end port in $port_group"
+          ports_valid=false
+          break
+        fi
+
+        # Add all ports in the range
+        for ((port=start_port; port<=end_port; port++)); do
+          mapping="OUT^0.0.0.0:$port^$port"
+          [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
+        done
+      elif [[ "$port_group" =~ ^[0-9]+$ ]]; then
+        # It's a single port
+        if validate_port "$port_group"; then
+          mapping="OUT^0.0.0.0:$port_group^$port_group"
+          [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
+        else
+          print_error "❌ Invalid port number: $port_group"
+          ports_valid=false
+          break
+        fi
       else
-        print_error "❌ Invalid port number. Port must be between 1 and 65535."
+        print_error "❌ Invalid port format: $port_group (use single ports or ranges like 80-90)"
+        ports_valid=false
+        break
       fi
     done
-    mapping="OUT^0.0.0.0:$port^$port"
-    [ -z "$mappings" ] && mappings="$mapping" || mappings="$mappings,$mapping"
-    echo ""
+
+    if [ "$ports_valid" = true ]; then
+      break
+    fi
   done
+
+  echo ""
 
   # Determine the mapping arguments based on the tunnel_mode
   mapping_args=""
@@ -2195,6 +2248,14 @@ while true; do
       install_trusttunnel_action
       ;;
     2)
+      # Check if RSTUN is installed
+      if [ "$rstun_status" = "Not Installed" ]; then
+        echo -e "${RED}❌ RSTUN is not installed. Please install it first (option 1).${RESET}"
+        echo ""
+        echo -e "${YELLOW}Press Enter to continue...${RESET}"
+        read -p ""
+        continue
+      fi
    while true; do
     clear # Clear screen for a fresh menu display
     echo ""
@@ -2302,6 +2363,14 @@ while true; do
           done
           ;;
         2)
+          # Check if RSTUN is installed
+          if [ "$rstun_status" = "Not Installed" ]; then
+            echo -e "${RED}❌ RSTUN is not installed. Please install it first.${RESET}"
+            echo ""
+            echo -e "${YELLOW}Press Enter to continue...${RESET}"
+            read -p ""
+            continue
+          fi
           clear
 
           while true; do
@@ -2530,6 +2599,14 @@ while true; do
       ;;
       
     3)
+      # Check if RSTUN is installed
+      if [ "$rstun_status" = "Not Installed" ]; then
+        echo -e "${RED}❌ RSTUN is not installed. Please install it first (option 1).${RESET}"
+        echo ""
+        echo -e "${YELLOW}Press Enter to continue...${RESET}"
+        read -p ""
+        continue
+      fi
     while true; do
       # Direct tunnel menu (copy of reverse tunnel with modified names)
       clear
