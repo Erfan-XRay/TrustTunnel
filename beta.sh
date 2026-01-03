@@ -2158,10 +2158,9 @@ while true; do
   echo -e "${CYAN}"
   figlet -f slant "TrustTunnel"
   echo -e "${CYAN}"
-  echo -e "\033[1;33m=========================================================="
+  echo -e "${BOLD_GREEN}=========================================================="
   echo -e "Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel"
-  echo -e "Telegram Channel => @Erfan_XRay"
-  echo -e "\033[0m${WHITE}Reverse tunnel over QUIC ( Based on rstun project)${WHITE}${RESET}"
+  echo -e "Telegram Channel => @Erfan_XRay${RESET}"
   echo ""
 
   # Get system information
