@@ -2156,7 +2156,7 @@ while true; do
   # Clear terminal and show logo
   clear
   echo -e "${BOLD_GREEN}"
-  figlet -f speed "TrustTunnel"
+  figlet -f slant "TrustTunnel"
   echo -e "${BOLD_GREEN}"
   echo -e "${BOLD_GREEN}==========================================================${RESET}"
   echo -e "${CYAN}Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel${RESET}"
