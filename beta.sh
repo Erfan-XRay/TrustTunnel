@@ -2155,12 +2155,12 @@ if [ "$RUST_IS_READY" = true ]; then
 while true; do
   # Clear terminal and show logo
   clear
-  echo -e "${CYAN}"
+  echo -e "${BOLD_GREEN}"
   figlet -f slant "TrustTunnel"
-  echo -e "${CYAN}"
-  echo -e "${BOLD_GREEN}=========================================================="
-  echo -e "Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel"
-  echo -e "Telegram Channel => @Erfan_XRay${RESET}"
+  echo -e "${BOLD_GREEN}"
+  echo -e "${BOLD_GREEN}==========================================================${RESET}"
+  echo -e "${CYAN}Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel${RESET}"
+  echo -e "${CYAN}Telegram Channel => @Erfan_XRay${RESET}"
   echo ""
 
   # Get system information
