@@ -744,15 +744,56 @@ User=$(whoami)
 WantedBy=multi-user.target
 EOF
 
+  # Verify service file was created
+  if [ ! -f "$service_file" ]; then
+    print_error "❌ Failed to create service file at $service_file"
+    echo -e "${YELLOW}Check permissions and try again${RESET}"
+    echo ""
+    echo -e "${YELLOW}Press Enter to return to main menu...${RESET}"
+    read -p ""
+    return 1
+  else
+    echo -e "${GREEN}✅ Service file created at $service_file${RESET}"
+  fi
+
   echo -e "${CYAN}🔧 Reloading systemd daemon...${RESET}" # Reloading systemd daemon...
   sudo systemctl daemon-reload
 
   echo -e "${CYAN}🚀 Enabling and starting Trusttunnel service...${RESET}" # Enabling and starting Trusttunnel service...
-  sudo systemctl enable trusttunnel.service > /dev/null 2>&1
-  sudo systemctl start trusttunnel.service > /dev/null 2>&1
 
-  print_success "TrustTunnel service started successfully!" # TrustTunnel service started successfully!
+  # Enable the service
+  if sudo systemctl enable trusttunnel.service > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Service enabled successfully${RESET}"
+  else
+    print_error "Failed to enable the service"
+  fi
 
+  # Start the service and check if it started successfully
+  if sudo systemctl start trusttunnel.service > /dev/null 2>&1; then
+    # Check if service is actually running
+    if systemctl is-active --quiet trusttunnel.service; then
+      print_success "✅ TrustTunnel server started successfully!"
+      echo -e "${CYAN}📋 Service Details:${RESET}"
+      echo -e "   ${WHITE}Service: trusttunnel.service${RESET}"
+      echo -e "   ${WHITE}Status: $(systemctl is-active trusttunnel.service)${RESET}"
+      echo -e "   ${WHITE}Listen Port: $listen_port${RESET}"
+      echo -e "   ${WHITE}TCP Upstream: $tcp_upstream_port${RESET}"
+      echo -e "   ${WHITE}UDP Upstream: $udp_upstream_port${RESET}"
+      if [[ "$tls_enabled" == "true" ]]; then
+        echo -e "   ${WHITE}TLS: Enabled (Domain: $selected_domain_name)${RESET}"
+      else
+        echo -e "   ${WHITE}TLS: Disabled${RESET}"
+      fi
+    else
+      print_error "❌ Service failed to start. Checking status..."
+      echo -e "${YELLOW}Service Status: $(systemctl is-active trusttunnel.service)${RESET}"
+      echo -e "${YELLOW}Run 'sudo systemctl status trusttunnel.service' for more details${RESET}"
+    fi
+  else
+    print_error "❌ Failed to start the service"
+    echo -e "${YELLOW}Check service file: /etc/systemd/system/trusttunnel.service${RESET}"
+    echo -e "${YELLOW}Run 'sudo systemctl status trusttunnel.service' for error details${RESET}"
+  fi
 
   echo ""
   echo -e "${YELLOW}Do you want to view the logs for trusttunnel.service now? (y/N): ${RESET}" # Do you want to view the logs for trusttunnel.service now? (y/N):
@@ -1207,17 +1248,59 @@ User=$(whoami)
 WantedBy=multi-user.target
 EOF
 
+  # Verify service file was created
+  if [ ! -f "$service_file" ]; then
+    print_error "❌ Failed to create service file at $service_file"
+    echo -e "${YELLOW}Check permissions and try again${RESET}"
+    echo ""
+    echo -e "${YELLOW}Press Enter to return to main menu...${RESET}"
+    read -p ""
+    return 1
+  else
+    echo -e "${GREEN}✅ Service file created at $service_file${RESET}"
+  fi
+
   echo -e "${CYAN}🔧 Reloading systemd daemon...${RESET}"
   sudo systemctl daemon-reload
 
   echo -e "${CYAN}🚀 Enabling and starting Direct Trusttunnel service...${RESET}"
-  sudo systemctl enable trusttunnel-direct.service > /dev/null 2>&1
-  sudo systemctl start trusttunnel-direct.service > /dev/null 2>&1
 
-  print_success "Direct TrustTunnel service started successfully!"
+  # Enable the service
+  if sudo systemctl enable trusttunnel-direct.service > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Service enabled successfully${RESET}"
+  else
+    print_error "Failed to enable the service"
+  fi
+
+  # Start the service and check if it started successfully
+  if sudo systemctl start trusttunnel-direct.service > /dev/null 2>&1; then
+    # Check if service is actually running
+    if systemctl is-active --quiet trusttunnel-direct.service; then
+      print_success "✅ Direct TrustTunnel server started successfully!"
+      echo -e "${CYAN}📋 Service Details:${RESET}"
+      echo -e "   ${WHITE}Service: trusttunnel-direct.service${RESET}"
+      echo -e "   ${WHITE}Status: $(systemctl is-active trusttunnel-direct.service)${RESET}"
+      echo -e "   ${WHITE}Listen Address: $server_listen_addr:$listen_port${RESET}"
+      echo -e "   ${WHITE}TCP Upstream: $tcp_upstream_port${RESET}"
+      echo -e "   ${WHITE}UDP Upstream: $udp_upstream_port${RESET}"
+      if [[ "$tls_enabled" == "true" ]]; then
+        echo -e "   ${WHITE}TLS: Enabled (Domain: $selected_domain_name)${RESET}"
+      else
+        echo -e "   ${WHITE}TLS: Disabled${RESET}"
+      fi
+    else
+      print_error "❌ Service failed to start. Checking status..."
+      echo -e "${YELLOW}Service Status: $(systemctl is-active trusttunnel-direct.service)${RESET}"
+      echo -e "${YELLOW}Run 'sudo systemctl status trusttunnel-direct.service' for more details${RESET}"
+    fi
+  else
+    print_error "❌ Failed to start the service"
+    echo -e "${YELLOW}Check service file: /etc/systemd/system/trusttunnel-direct.service${RESET}"
+    echo -e "${YELLOW}Run 'sudo systemctl status trusttunnel-direct.service' for error details${RESET}"
+  fi
 
   echo ""
-  echo -e "${YELLOW}Do you want to view the logs for trusttunnel-direct.service now? (y/N): ${RESET}" # Do you want to view the logs for trusttunnel.service now? (y/N):
+  echo -e "${YELLOW}Do you want to view the logs for trusttunnel-direct.service now? (y/N): ${RESET}"
   read -p "" view_logs_choice
   echo ""
 
@@ -2215,30 +2298,49 @@ while true; do
                 clear
                 service_file="/etc/systemd/system/trusttunnel.service"
                 if [ -f "$service_file" ]; then
-                  show_service_logs "trusttunnel.service"
+                  # Check if service exists in systemd
+                  if systemctl list-unit-files --full --no-pager | grep -q "^trusttunnel.service"; then
+                    show_service_logs "trusttunnel.service"
+                  else
+                    echo -e "${RED}❌ Service 'trusttunnel.service' is not loaded in systemd.${RESET}"
+                    echo -e "${YELLOW}Try reloading systemd daemon: sudo systemctl daemon-reload${RESET}"
+                    echo ""
+                    echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
+                    read -p ""
+                  fi
                 else
-                  echo -e "${RED}❌ Service 'trusttunnel.service' not found. Cannot show logs.${RESET}" # Service 'trusttunnel.service' not found. Cannot show logs.
+                  echo -e "${RED}❌ Service file 'trusttunnel.service' not found at $service_file${RESET}"
+                  echo -e "${YELLOW}The service may not be created yet. Create a server first.${RESET}"
                   echo ""
-                  echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}" # Press Enter to return to previous menu...
+                  echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
                   read -p ""
                 fi
               ;;
               3)
                 clear
                 service_file="/etc/systemd/system/trusttunnel.service"
-                if [ -f "$service_file" ]; then
-                  echo -e "${YELLOW}🛑 Stopping and deleting trusttunnel.service...${RESET}" # Stopping and deleting trusttunnel.service...
+
+                # Check if service is running or enabled
+                if systemctl is-active --quiet trusttunnel.service 2>/dev/null || systemctl is-enabled --quiet trusttunnel.service 2>/dev/null; then
+                  echo -e "${YELLOW}🛑 Stopping trusttunnel.service...${RESET}"
                   sudo systemctl stop trusttunnel.service > /dev/null 2>&1
+                  echo -e "${YELLOW}🗑️ Disabling trusttunnel.service...${RESET}"
                   sudo systemctl disable trusttunnel.service > /dev/null 2>&1
+                fi
+
+                if [ -f "$service_file" ]; then
+                  echo -e "${YELLOW}🗑️ Removing service file...${RESET}"
                   sudo rm -f "$service_file" > /dev/null 2>&1
                   sudo systemctl daemon-reload > /dev/null 2>&1
-                  print_success "Service deleted." # Service deleted.
+                  print_success "✅ TrustTunnel server service deleted successfully."
                 else
-                  echo -e "${RED}❌ Service 'trusttunnel.service' not found. Nothing to delete.${RESET}" # Service 'trusttunnel.service' not found. Nothing to delete.
+                  echo -e "${RED}❌ Service file not found at $service_file${RESET}"
+                  echo -e "${YELLOW}Service may already be deleted or never created.${RESET}"
                 fi
+
                 echo ""
-                echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}" # Press Enter to return to previous menu...
-                  read -p ""
+                echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
+                read -p ""
               ;;
               4) # Schedule server restart
                 reset_timer "trusttunnel" # Pass the server service name directly
@@ -2585,9 +2687,19 @@ while true; do
                 clear
                 service_file="/etc/systemd/system/trusttunnel-direct.service"
                 if [ -f "$service_file" ]; then
-                  show_service_logs "trusttunnel-direct.service"
+                  # Check if service exists in systemd
+                  if systemctl list-unit-files --full --no-pager | grep -q "^trusttunnel-direct.service"; then
+                    show_service_logs "trusttunnel-direct.service"
+                  else
+                    echo -e "${RED}❌ Service 'trusttunnel-direct.service' is not loaded in systemd.${RESET}"
+                    echo -e "${YELLOW}Try reloading systemd daemon: sudo systemctl daemon-reload${RESET}"
+                    echo ""
+                    echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
+                    read -p ""
+                  fi
                 else
-                  echo -e "${RED}❌ Service 'trusttunnel-direct.service' not found. Cannot show logs.${RESET}"
+                  echo -e "${RED}❌ Service file 'trusttunnel-direct.service' not found at $service_file${RESET}"
+                  echo -e "${YELLOW}The service may not be created yet. Create a direct server first.${RESET}"
                   echo ""
                   echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
                   read -p ""
@@ -2596,16 +2708,25 @@ while true; do
               3)
                 clear
                 service_file="/etc/systemd/system/trusttunnel-direct.service"
-                if [ -f "$service_file" ]; then
-                  echo -e "${YELLOW}🛑 Stopping and deleting trusttunnel-direct.service...${RESET}"
+
+                # Check if service is running or enabled
+                if systemctl is-active --quiet trusttunnel-direct.service 2>/dev/null || systemctl is-enabled --quiet trusttunnel-direct.service 2>/dev/null; then
+                  echo -e "${YELLOW}🛑 Stopping trusttunnel-direct.service...${RESET}"
                   sudo systemctl stop trusttunnel-direct.service > /dev/null 2>&1
+                  echo -e "${YELLOW}🗑️ Disabling trusttunnel-direct.service...${RESET}"
                   sudo systemctl disable trusttunnel-direct.service > /dev/null 2>&1
-                  sudo rm -f /etc/systemd/system/trusttunnel-direct.service > /dev/null 2>&1
-                  sudo systemctl daemon-reload > /dev/null 2>&1
-                  print_success "Direct service deleted."
-                else
-                  echo -e "${RED}❌ Service 'trusttunnel-direct.service' not found. Nothing to delete.${RESET}"
                 fi
+
+                if [ -f "$service_file" ]; then
+                  echo -e "${YELLOW}🗑️ Removing service file...${RESET}"
+                  sudo rm -f "$service_file" > /dev/null 2>&1
+                  sudo systemctl daemon-reload > /dev/null 2>&1
+                  print_success "✅ Direct TrustTunnel server service deleted successfully."
+                else
+                  echo -e "${RED}❌ Service file not found at $service_file${RESET}"
+                  echo -e "${YELLOW}Service may already be deleted or never created.${RESET}"
+                fi
+
                 echo ""
                 echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}"
                 read -p ""
