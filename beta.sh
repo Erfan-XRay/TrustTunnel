@@ -525,7 +525,7 @@ install_trusttunnel_action() {
       ;;
   esac
 
-  download_url="https://github.com/neevek/rstun/releases/download/release%2F0.7.1/${filename}"
+  download_url="https://github.com/neevek/rstun/releases/download/release%2F0.7.4/${filename}"
 
   echo -e "${CYAN}Downloading $filename for $arch...${RESET}" # Downloading filename for arch...
   if wget -q --show-progress "$download_url" -O "$filename"; then
@@ -672,7 +672,7 @@ add_new_server_action() {
     if validate_port "$listen_port"; then
       break
     else
-      print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
     fi
   done
 
@@ -686,7 +686,7 @@ add_new_server_action() {
     if validate_port "$tcp_upstream_port"; then
       break
     else
-      print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
     fi
   done
 
@@ -700,7 +700,7 @@ add_new_server_action() {
     if validate_port "$udp_upstream_port"; then
       break
     else
-      print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
     fi
   done
 
@@ -772,14 +772,19 @@ EOF
 add_new_client_action() {
   clear
   echo ""
-  draw_line "$CYAN" "=" 40
-  echo -e "${CYAN}     ➕ Add New TrustTunnel Client${RESET}" # Add New TrustTunnel Client
-  draw_line "$CYAN" "=" 40
+  draw_line "$CYAN" "=" 50
+  echo -e "${BOLD_GREEN}     ➕ Add New Reverse Tunnel Client${RESET}"
+  draw_line "$CYAN" "=" 50
+  echo ""
+  echo -e "${WHITE}Create a new reverse tunnel client connection${RESET}"
   echo ""
 
   # Prompt for the client name (e.g., asiatech, respina, server2)
-  echo -e "👉 ${WHITE}Enter client name (e.g., asiatech, respina, server2):${RESET} " # Enter client name (e.g., asiatech, respina, server2):
-  read -p "" client_name
+  echo -e "${CYAN}📛 Client Configuration:${RESET}"
+  echo -e "${WHITE}Choose a unique name for this client (used for service identification)${RESET}"
+  echo -e "${YELLOW}Examples: asiatech, respina, server2, home-server, office-vpn${RESET}"
+  echo ""
+  read -p "👉 Enter client name: " client_name
   echo ""
 
   # Construct the service name based on the client name
@@ -789,20 +794,23 @@ add_new_client_action() {
 
   # Check if a service with the given name already exists
   if [ -f "$service_file" ]; then
-    echo -e "${RED}❌ Service with this name already exists.${RESET}" # Service with this name already exists.
+    echo -e "${RED}❌ Error: A client with the name '$client_name' already exists.${RESET}"
+    echo -e "${YELLOW}💡 Choose a different name or delete the existing client first.${RESET}"
     echo ""
     echo -e "${YELLOW}Press Enter to return to previous menu...${RESET}" # Press Enter to return to previous menu...
     return # Return to menu
   fi
 
-  echo -e "${CYAN}🌐 Server Connection Details:${RESET}" # Server Connection Details:
-  echo -e "  (e.x., server.yourdomain.com:6060)"
-  
+  echo -e "${CYAN}🌐 Server Connection Details:${RESET}"
+  echo -e "${WHITE}Specify the reverse tunnel server this client should connect to${RESET}"
+  echo -e "${YELLOW}Format: hostname:port or IP:port${RESET}"
+  echo -e "${YELLOW}Examples: server.yourdomain.com:6060, 192.168.1.100:6060${RESET}"
+  echo ""
+
   # Validate Server Address
   local server_addr
   while true; do
-    echo -e "👉 ${WHITE}Server address and port (e.g., server.yourdomain.com:6060 or 192.168.1.1:6060):${RESET} " # Server address and port (e.g., server.yourdomain.com:6060 or 192.168.1.1:6060):
-    read -p "" server_addr_input
+    read -p "👉 Enter server address and port: " server_addr_input
     # Split into host and port for validation
     local host_part=$(echo "$server_addr_input" | cut -d':' -f1)
     local port_part=$(echo "$server_addr_input" | cut -d':' -f2)
@@ -811,32 +819,38 @@ add_new_client_action() {
       server_addr="$server_addr_input"
       break
     else
-      print_error "Invalid server address or port format. Please use 'host:port' (e.g., example.com:6060)." # Invalid server address or port format. Please use 'host:port' (e.g., example.com:6060).
+      print_error "❌ Invalid server address format. Use 'hostname:port' or 'IP:port' (e.g., server.example.com:6060)."
     fi
   done
   echo ""
 
-  echo -e "${CYAN}📡 Tunnel Mode:${RESET}" # Tunnel Mode:
-  echo -e "  (tcp/udp/both)"
-  echo -e "👉 ${WHITE}Tunnel mode ? (tcp/udp/both):${RESET} " # Tunnel mode ? (tcp/udp/both):
-  read -p "" tunnel_mode
+  echo -e "${CYAN}📡 Tunnel Protocol Configuration:${RESET}"
+  echo -e "${WHITE}Choose which network protocols to tunnel through this connection${RESET}"
+  echo -e "${YELLOW}Options: tcp (web/HTTP), udp (games/DNS), both (recommended)${RESET}"
+  echo ""
+  read -p "👉 Select tunnel mode (tcp/udp/both): " tunnel_mode
   echo ""
 
-  echo -e "🔑 ${WHITE}Password:${RESET} " # Password:
-  read -p "" password
+  echo -e "${CYAN}🔐 Security Configuration:${RESET}"
+  echo -e "${WHITE}Enter the password that matches your tunnel server${RESET}"
+  echo -e "${YELLOW}This must be identical to the server password${RESET}"
+  echo ""
+  read -p "👉 Enter connection password: " password
   echo ""
 
-  echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}" # Port Mapping Configuration:
-  
+  echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}"
+  echo -e "${WHITE}Specify which local ports to tunnel to the remote server${RESET}"
+  echo -e "${YELLOW}Each port will be accessible from the server side${RESET}"
+  echo ""
+
   local port_count
   while true; do
-    echo -e "👉 ${WHITE}How many ports to tunnel?${RESET} " # How many ports to tunnel?
-    read -p "" port_count_input
+    read -p "👉 How many ports to tunnel? " port_count_input
     if [[ "$port_count_input" =~ ^[0-9]+$ ]] && (( port_count_input >= 0 )); then
       port_count=$port_count_input
       break
     else
-      print_error "Invalid input. Please enter a non-negative number for port count." # Invalid input. Please enter a non-negative number for port count.
+      print_error "❌ Invalid input. Please enter 0 or a positive number for the port count."
     fi
   done
   echo ""
@@ -845,13 +859,12 @@ add_new_client_action() {
   for ((i=1; i<=port_count; i++)); do
     local port
     while true; do
-      echo -e "👉 ${WHITE}Enter Port #$i (1-65535):${RESET} " # Enter Port #i (1-65535):
-      read -p "" port_input
+      read -p "👉 Enter Port #$i (1-65535): " port_input
       if validate_port "$port_input"; then
         port="$port_input"
         break
       else
-        print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+        print_error "❌ Invalid port number. Port must be between 1 and 65535."
       fi
     done
     mapping="IN^0.0.0.0:$port^0.0.0.0:$port"
@@ -901,10 +914,15 @@ EOF
   sudo systemctl enable "$service_name" > /dev/null 2>&1
   sudo systemctl start "$service_name" > /dev/null 2>&1
 
-  print_success "Client '$client_name' started as $service_name" # Client 'client_name' started as service_name
+  print_success "✅ Reverse tunnel client '$client_name' has been created and started!"
+  echo -e "${CYAN}📋 Service Details:${RESET}"
+  echo -e "   ${WHITE}Service Name: $service_name${RESET}"
+  echo -e "   ${WHITE}Connection: $server_addr${RESET}"
+  echo -e "   ${WHITE}Protocol: $tunnel_mode${RESET}"
+  echo -e "   ${WHITE}Ports: ${mappings//,/, }${RESET}"
   echo ""
-  echo -e "${YELLOW}Do you want to view the logs for $client_name now? (y/N): ${RESET}" # Do you want to view the logs for client_name now? (y/N):
-  read -p "" view_logs_choice
+  echo -e "${CYAN}🔍 Monitoring Options:${RESET}"
+  read -p "👉 View client logs now? (y/N): " view_logs_choice
   echo ""
 
   if [[ "$view_logs_choice" =~ ^[Yy]$ ]]; then
@@ -1131,7 +1149,7 @@ add_new_direct_server_action() {
     if validate_port "$tcp_upstream_port"; then
       break
     else
-      print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
     fi
   done
 
@@ -1145,7 +1163,7 @@ add_new_direct_server_action() {
     if validate_port "$udp_upstream_port"; then
       break
     else
-      print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+      print_error "❌ Invalid port number. Port must be between 1 and 65535."
     fi
     done
 
@@ -1684,27 +1702,33 @@ add_new_direct_client_action() {
   done
   echo ""
 
-  echo -e "${CYAN}📡 Tunnel Mode:${RESET}" # Tunnel Mode:
-  echo -e "  (tcp/udp/both)"
-  echo -e "👉 ${WHITE}Tunnel mode ? (tcp/udp/both):${RESET} " # Tunnel mode ? (tcp/udp/both):
-  read -p "" tunnel_mode
+  echo -e "${CYAN}📡 Tunnel Protocol Configuration:${RESET}"
+  echo -e "${WHITE}Choose which network protocols to tunnel through this connection${RESET}"
+  echo -e "${YELLOW}Options: tcp (web/HTTP), udp (games/DNS), both (recommended)${RESET}"
+  echo ""
+  read -p "👉 Select tunnel mode (tcp/udp/both): " tunnel_mode
   echo ""
 
-  echo -e "🔑 ${WHITE}Password:${RESET} " # Password:
-  read -p "" password
+  echo -e "${CYAN}🔐 Security Configuration:${RESET}"
+  echo -e "${WHITE}Enter the password that matches your tunnel server${RESET}"
+  echo -e "${YELLOW}This must be identical to the server password${RESET}"
+  echo ""
+  read -p "👉 Enter connection password: " password
   echo ""
 
-  echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}" # Port Mapping Configuration:
-  
+  echo -e "${CYAN}🔢 Port Mapping Configuration:${RESET}"
+  echo -e "${WHITE}Specify which local ports to tunnel to the remote server${RESET}"
+  echo -e "${YELLOW}Each port will be accessible from the server side${RESET}"
+  echo ""
+
   local port_count
   while true; do
-    echo -e "👉 ${WHITE}How many ports to tunnel?${RESET} " # How many ports to tunnel?
-    read -p "" port_count_input
+    read -p "👉 How many ports to tunnel? " port_count_input
     if [[ "$port_count_input" =~ ^[0-9]+$ ]] && (( port_count_input >= 0 )); then
       port_count=$port_count_input
       break
     else
-      print_error "Invalid input. Please enter a non-negative number for port count." # Invalid input. Please enter a non-negative number for port count.
+      print_error "❌ Invalid input. Please enter 0 or a positive number for the port count."
     fi
   done
   echo ""
@@ -1713,13 +1737,12 @@ add_new_direct_client_action() {
   for ((i=1; i<=port_count; i++)); do
     local port
     while true; do
-      echo -e "👉 ${WHITE}Enter Port #$i (1-65535):${RESET} " # Enter Port #i (1-65535):
-      read -p "" port_input
+      read -p "👉 Enter Port #$i (1-65535): " port_input
       if validate_port "$port_input"; then
         port="$port_input"
         break
       else
-        print_error "Invalid port number. Please enter a number between 1 and 65535." # Invalid port number. Please enter a number between 1 and 65535.
+        print_error "❌ Invalid port number. Port must be between 1 and 65535."
       fi
     done
     mapping="OUT^0.0.0.0:$port^$port"
@@ -1769,10 +1792,15 @@ EOF
   sudo systemctl enable "$service_name" > /dev/null 2>&1
   sudo systemctl start "$service_name" > /dev/null 2>&1
 
-  print_success "Direct client '$client_name' started as $service_name"
+  print_success "✅ Direct tunnel client '$client_name' has been created and started!"
+  echo -e "${CYAN}📋 Service Details:${RESET}"
+  echo -e "   ${WHITE}Service Name: $service_name${RESET}"
+  echo -e "   ${WHITE}Connection: $final_server_addr${RESET}"
+  echo -e "   ${WHITE}Protocol: $tunnel_mode${RESET}"
+  echo -e "   ${WHITE}Ports: ${mappings//,/, }${RESET}"
   echo ""
-  echo -e "${YELLOW}Do you want to view the logs for $client_name now? (y/N): ${RESET}" # Do you want to view the logs for client_name now? (y/N):
-  read -p "" view_logs_choice
+  echo -e "${CYAN}🔍 Monitoring Options:${RESET}"
+  read -p "👉 View client logs now? (y/N): " view_logs_choice
   echo ""
 
   if [[ "$view_logs_choice" =~ ^[Yy]$ ]]; then
@@ -1907,18 +1935,36 @@ certificate_management_menu() {
   while true; do
     clear
     echo ""
-    draw_line "$GREEN" "=" 40
-    echo -e "${CYAN}     🔐 Certificate Management${RESET}"
-    draw_line "$GREEN" "=" 40
+    draw_line "$CYAN" "=" 50
+    echo -e "${BOLD_GREEN}     🔐 SSL Certificate Management${RESET}"
+    draw_line "$CYAN" "=" 50
     echo ""
-    echo -e "  ${YELLOW}1)${RESET} ${WHITE}Get new certificate${RESET}"
-    echo -e "  ${YELLOW}2)${RESET} ${WHITE}Delete certificates${RESET}"
-    echo -e "  ${YELLOW}3)${RESET} ${WHITE}New custom certificate from content${RESET}"
-    echo -e "  ${YELLOW}4)${RESET} ${WHITE}Back to main menu${RESET}"
+    echo -e "${WHITE}Manage SSL certificates for secure tunnel connections${RESET}"
     echo ""
-    draw_line "$GREEN" "-" 40
-    echo -e "👉 ${CYAN}Your choice:${RESET} "
-    read -p "" cert_choice
+
+    echo -e "  ${WHITE}┌─ 1 ──────────────────────────────┐${RESET}"
+    echo -e "  ${WHITE}│  ➕ Request New Certificate${RESET}"
+    echo -e "  ${WHITE}│  Get SSL cert via Let's Encrypt  │${RESET}"
+    echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+    echo ""
+    echo -e "  ${RED}┌─ 2 ──────────────────────────────┐${RESET}"
+    echo -e "  ${RED}│  🗑️  Delete Certificates${RESET}"
+    echo -e "  ${RED}│  Remove existing SSL certs       │${RESET}"
+    echo -e "  ${RED}└───────────────────────────────────┘${RESET}"
+    echo ""
+    echo -e "  ${YELLOW}┌─ 3 ──────────────────────────────┐${RESET}"
+    echo -e "  ${YELLOW}│  📄 Add Custom Certificate${RESET}"
+    echo -e "  ${YELLOW}│  Import cert from file content   │${RESET}"
+    echo -e "  ${YELLOW}└───────────────────────────────────┘${RESET}"
+    echo ""
+    echo -e "  ${WHITE}┌─ 4 ──────────────────────────────┐${RESET}"
+    echo -e "  ${WHITE}│  ↩️  Back to Main Menu${RESET}"
+    echo -e "  ${WHITE}│  Return to main menu             │${RESET}"
+    echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+    echo ""
+    draw_line "$CYAN" "-" 50
+    echo ""
+    read -p "👉 Enter your choice (1-4): " cert_choice
     echo ""
 
     case $cert_choice in
@@ -2054,40 +2100,88 @@ while true; do
   echo -e "\033[1;33m=========================================================="
   echo -e "Developed by ErfanXRay => https://github.com/Erfan-XRay/TrustTunnel"
   echo -e "Telegram Channel => @Erfan_XRay"
-  echo -e "\033[0m${WHITE}Reverse tunnel over QUIC ( Based on rstun project)${WHITE}${RESET}" # Reverse tunnel over QUIC ( Based on rstun project)
+  echo -e "\033[0m${WHITE}Reverse tunnel over QUIC ( Based on rstun project)${WHITE}${RESET}"
+  echo ""
+  echo -e "${BOLD_GREEN}🚀 Welcome to TrustTunnel Manager!${RESET}"
+  echo -e "${WHITE}Your secure tunneling solution for connecting networks${RESET}"
+  echo ""
   draw_green_line
   echo -e "${GREEN}|${RESET}      ${WHITE}TrustTunnel Main Menu${RESET}      ${GREEN}|${RESET}" # TrustTunnel Main Menu
-  # echo -e "${YELLOW}You can also run this script anytime by typing: ${WHITE}trust${RESET}" # Removed as per user request
   draw_green_line
-  # Menu
-  echo "Select an option:" # Select an option:
-  echo -e "${MAGENTA}1) Install Rstun${RESET}" # Install TrustTunnel
-  echo -e "${CYAN}2) Rstun reverse tunnel(Ipv4 only)${RESET}" # Rstun reverse tunnel
-  echo -e "${CYAN}3) Rstun direct tunnel(Ipv4/Ipv6)${RESET}" # Rstun direct tunnel
-  echo -e "${YELLOW}4) Certificate management${RESET}" # New: Certificate management
-  echo -e "${RED}5) Uninstall TrustTunnel${RESET}" # Shifted from 4
-  echo -e "${WHITE}6) Exit${RESET}" # Shifted from 5
-  read -p "👉 Your choice: " choice # Your choice:
+  echo ""
+
+  # Main Menu Options with better formatting
+  echo -e "${BOLD_GREEN}📋 Available Options:${RESET}"
+  echo ""
+  echo -e "  ${MAGENTA}┌─ 1 ──────────────────────────────┐${RESET}"
+  echo -e "  ${MAGENTA}│  📦 Install RSTUN${RESET}"
+  echo -e "  ${MAGENTA}│  Download and setup RSTUN binary │${RESET}"
+  echo -e "  ${MAGENTA}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${CYAN}┌─ 2 ──────────────────────────────┐${RESET}"
+  echo -e "  ${CYAN}│  🌐 Reverse Tunnel (IPv4 only)${RESET}"
+  echo -e "  ${CYAN}│  Server in Iran, Client abroad    │${RESET}"
+  echo -e "  ${CYAN}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${CYAN}┌─ 3 ──────────────────────────────┐${RESET}"
+  echo -e "  ${CYAN}│  🚀 Direct Tunnel (IPv4/IPv6)${RESET}"
+  echo -e "  ${CYAN}│  Direct connection tunneling     │${RESET}"
+  echo -e "  ${CYAN}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${YELLOW}┌─ 4 ──────────────────────────────┐${RESET}"
+  echo -e "  ${YELLOW}│  🔐 Certificate Management${RESET}"
+  echo -e "  ${YELLOW}│  SSL certificates & security     │${RESET}"
+  echo -e "  ${YELLOW}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${RED}┌─ 5 ──────────────────────────────┐${RESET}"
+  echo -e "  ${RED}│  🗑️  Uninstall TrustTunnel${RESET}"
+  echo -e "  ${RED}│  Remove all components          │${RESET}"
+  echo -e "  ${RED}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "  ${WHITE}┌─ 6 ──────────────────────────────┐${RESET}"
+  echo -e "  ${WHITE}│  👋 Exit${RESET}"
+  echo -e "  ${WHITE}│  Close TrustTunnel Manager      │${RESET}"
+  echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+  echo ""
+  echo -e "${BOLD_GREEN}💡 Tip: Use numbers 1-6 to select an option${RESET}"
+  echo ""
+  read -p "👉 Enter your choice (1-6): " choice
 
   case $choice in
     1)
       install_trusttunnel_action
       ;;
     2)
-   while true; do 
+   while true; do
     clear # Clear screen for a fresh menu display
     echo ""
-    draw_line "$GREEN" "=" 40 # Top border
-    echo -e "${CYAN}     🌐 Choose Tunnel Mode${RESET}" # Choose Tunnel Mode
-    draw_line "$GREEN" "=" 40 # Separator
+    draw_line "$CYAN" "=" 50 # Top border
+    echo -e "${BOLD_GREEN}     🌐 Reverse Tunnel Configuration${RESET}"
+    draw_line "$CYAN" "=" 50 # Separator
     echo ""
-    echo -e "  ${YELLOW}1)${RESET} ${MAGENTA}Server (Iran)${RESET}" # Server (Iran)
-    echo -e "  ${YELLOW}2)${RESET} ${BLUE}Client (Kharej)${RESET}" # Client (Kharej)
-    echo -e "  ${YELLOW}3)${RESET} ${WHITE}Return to main menu${RESET}" # Return to main menu
+    echo -e "${WHITE}Choose your role in the reverse tunnel setup:${RESET}"
     echo ""
-    draw_line "$GREEN" "-" 40 # Bottom border
-    echo -e "👉 ${CYAN}Your choice:${RESET} " # Your choice:
-    read -p "" tunnel_choice # Removed prompt from read -p
+
+    echo -e "  ${MAGENTA}┌─ 1 ──────────────────────────────┐${RESET}"
+    echo -e "  ${MAGENTA}│  🏠 Server Side (Iran)${RESET}"
+    echo -e "  ${MAGENTA}│  Runs on your Iranian server     │${RESET}"
+    echo -e "  ${MAGENTA}│  Accepts incoming connections    │${RESET}"
+    echo -e "  ${MAGENTA}└───────────────────────────────────┘${RESET}"
+    echo ""
+    echo -e "  ${BLUE}┌─ 2 ──────────────────────────────┐${RESET}"
+    echo -e "  ${BLUE}│  🌍 Client Side (Abroad)${RESET}"
+    echo -e "  ${BLUE}│  Runs on your foreign server     │${RESET}"
+    echo -e "  ${BLUE}│  Connects to Iranian server      │${RESET}"
+    echo -e "  ${BLUE}└───────────────────────────────────┘${RESET}"
+    echo ""
+    echo -e "  ${WHITE}┌─ 3 ──────────────────────────────┐${RESET}"
+    echo -e "  ${WHITE}│  ↩️  Back to Main Menu${RESET}"
+    echo -e "  ${WHITE}│  Return to previous menu         │${RESET}"
+    echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+    echo ""
+    draw_line "$CYAN" "-" 50 # Bottom border
+    echo ""
+    read -p "👉 Enter your choice (1-3): " tunnel_choice
     echo "" # Add a blank line for better spacing after input
 
       case $tunnel_choice in
@@ -2171,21 +2265,51 @@ while true; do
           while true; do
             clear # Clear screen for a fresh menu display
             echo ""
-            draw_line "$GREEN" "=" 40 # Top border
-            echo -e "${CYAN}     📡 TrustTunnel Client Management${RESET}" # TrustTunnel Client Management
-            draw_line "$GREEN" "=" 40 # Separator
+            draw_line "$CYAN" "=" 50 # Top border
+            echo -e "${BOLD_GREEN}     📡 Reverse Client Management${RESET}"
+            draw_line "$CYAN" "=" 50 # Separator
             echo ""
-            echo -e "  ${YELLOW}1)${RESET} ${WHITE}Add new client${RESET}" # Add new client
-            echo -e "  ${YELLOW}2)${RESET} ${WHITE}Show Client Log${RESET}" # Show Client Log
-            echo -e "  ${YELLOW}3)${RESET} ${WHITE}Manage client ports${RESET}" # Manage client ports
-            echo -e "  ${YELLOW}4)${RESET} ${WHITE}Delete a client${RESET}" # Delete a client
-            echo -e "  ${YELLOW}5)${RESET} ${BLUE}Schedule client restart${RESET}" # Schedule client restart
-            echo -e "  ${YELLOW}6)${RESET} ${RED}Delete scheduled restart${RESET}" # New option: Delete scheduled restart
-            echo -e "  ${YELLOW}7)${RESET} ${WHITE}Back to main menu${RESET}" # Back to main menu
+            echo -e "${WHITE}Manage your reverse tunnel clients:${RESET}"
             echo ""
-            draw_line "$GREEN" "-" 40 # Bottom border
-            echo -e "👉 ${CYAN}Your choice:${RESET} " # Your choice:
-            read -p "" client_choice
+
+            echo -e "  ${WHITE}┌─ 1 ──────────────────────────────┐${RESET}"
+            echo -e "  ${WHITE}│  ➕ Add New Client${RESET}"
+            echo -e "  ${WHITE}│  Create a new client connection   │${RESET}"
+            echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${CYAN}┌─ 2 ──────────────────────────────┐${RESET}"
+            echo -e "  ${CYAN}│  📋 View Client Logs${RESET}"
+            echo -e "  ${CYAN}│  Monitor client service status    │${RESET}"
+            echo -e "  ${CYAN}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${YELLOW}┌─ 3 ──────────────────────────────┐${RESET}"
+            echo -e "  ${YELLOW}│  ⚙️  Manage Client Ports${RESET}"
+            echo -e "  ${YELLOW}│  Add/edit/delete tunnel ports     │${RESET}"
+            echo -e "  ${YELLOW}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${RED}┌─ 4 ──────────────────────────────┐${RESET}"
+            echo -e "  ${RED}│  🗑️  Delete Client${RESET}"
+            echo -e "  ${RED}│  Remove client and cleanup       │${RESET}"
+            echo -e "  ${RED}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${BLUE}┌─ 5 ──────────────────────────────┐${RESET}"
+            echo -e "  ${BLUE}│  ⏰ Schedule Restart${RESET}"
+            echo -e "  ${BLUE}│  Set automatic restart schedule  │${RESET}"
+            echo -e "  ${BLUE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${MAGENTA}┌─ 6 ──────────────────────────────┐${RESET}"
+            echo -e "  ${MAGENTA}│  🗑️  Delete Scheduled Restart${RESET}"
+            echo -e "  ${MAGENTA}│  Remove automatic restart        │${RESET}"
+            echo -e "  ${MAGENTA}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${WHITE}┌─ 7 ──────────────────────────────┐${RESET}"
+            echo -e "  ${WHITE}│  ↩️  Back to Previous Menu${RESET}"
+            echo -e "  ${WHITE}│  Return to tunnel mode selection │${RESET}"
+            echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            draw_line "$CYAN" "-" 50 # Bottom border
+            echo ""
+            read -p "👉 Enter your choice (1-7): " client_choice
             echo ""
 
             case $client_choice in
@@ -2398,21 +2522,37 @@ while true; do
       ;;
       
     3)
-    while true; do 
+    while true; do
       # Direct tunnel menu (copy of reverse tunnel with modified names)
       clear
       echo ""
-      draw_line "$GREEN" "=" 40
-      echo -e "${CYAN}        🌐 Choose Direct Tunnel Mode${RESET}"
-      draw_line "$GREEN" "=" 40
+      draw_line "$CYAN" "=" 50
+      echo -e "${BOLD_GREEN}        🚀 Direct Tunnel Configuration${RESET}"
+      draw_line "$CYAN" "=" 50
       echo ""
-      echo -e "  ${YELLOW}1)${RESET} ${MAGENTA}Direct Server(Kharej)${RESET}"
-      echo -e "  ${YELLOW}2)${RESET} ${BLUE}Direct Client(Iran)${RESET}"
-      echo -e "  ${YELLOW}3)${RESET} ${WHITE}Return to main menu${RESET}"
+      echo -e "${WHITE}Choose your role in the direct tunnel setup:${RESET}"
       echo ""
-      draw_line "$GREEN" "-" 40
-      echo -e "👉 ${CYAN}Your choice:${RESET} "
-      read -p "" direct_tunnel_choice
+
+      echo -e "  ${MAGENTA}┌─ 1 ──────────────────────────────┐${RESET}"
+      echo -e "  ${MAGENTA}│  🌍 Direct Server (Abroad)${RESET}"
+      echo -e "  ${MAGENTA}│  Runs on your foreign server     │${RESET}"
+      echo -e "  ${MAGENTA}│  Provides direct tunnel service  │${RESET}"
+      echo -e "  ${MAGENTA}└───────────────────────────────────┘${RESET}"
+      echo ""
+      echo -e "  ${BLUE}┌─ 2 ──────────────────────────────┐${RESET}"
+      echo -e "  ${BLUE}│  🏠 Direct Client (Iran)${RESET}"
+      echo -e "  ${BLUE}│  Runs on your Iranian server     │${RESET}"
+      echo -e "  ${BLUE}│  Connects to foreign server       │${RESET}"
+      echo -e "  ${BLUE}└───────────────────────────────────┘${RESET}"
+      echo ""
+      echo -e "  ${WHITE}┌─ 3 ──────────────────────────────┐${RESET}"
+      echo -e "  ${WHITE}│  ↩️  Back to Main Menu${RESET}"
+      echo -e "  ${WHITE}│  Return to previous menu         │${RESET}"
+      echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+      echo ""
+      draw_line "$CYAN" "-" 50
+      echo ""
+      read -p "👉 Enter your choice (1-3): " direct_tunnel_choice
       echo ""
 
       case $direct_tunnel_choice in
@@ -2494,21 +2634,51 @@ while true; do
           while true; do
             clear
             echo ""
-            draw_line "$GREEN" "=" 40
-            echo -e "${CYAN}        📡 Direct Client Management${RESET}"
-            draw_line "$GREEN" "=" 40
+            draw_line "$CYAN" "=" 50
+            echo -e "${BOLD_GREEN}        📡 Direct Client Management${RESET}"
+            draw_line "$CYAN" "=" 50
             echo ""
-            echo -e "  ${YELLOW}1)${RESET} ${WHITE}Add new direct client${RESET}"
-            echo -e "  ${YELLOW}2)${RESET} ${WHITE}Show Direct Client Log${RESET}"
-            echo -e "  ${YELLOW}3)${RESET} ${WHITE}Manage direct client ports${RESET}"
-            echo -e "  ${YELLOW}4)${RESET} ${WHITE}Delete a direct client${RESET}"
-            echo -e "  ${YELLOW}5)${RESET} ${BLUE}Schedule direct client restart${RESET}"
-            echo -e "  ${YELLOW}6)${RESET} ${RED}Delete scheduled restart${RESET}"
-            echo -e "  ${YELLOW}7)${RESET} ${WHITE}Back to main menu${RESET}"
+            echo -e "${WHITE}Manage your direct tunnel clients:${RESET}"
             echo ""
-            draw_line "$GREEN" "-" 40
-            echo -e "👉 ${CYAN}Your choice:${RESET} "
-            read -p "" direct_client_choice
+
+            echo -e "  ${WHITE}┌─ 1 ──────────────────────────────┐${RESET}"
+            echo -e "  ${WHITE}│  ➕ Add New Direct Client${RESET}"
+            echo -e "  ${WHITE}│  Create a new direct connection   │${RESET}"
+            echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${CYAN}┌─ 2 ──────────────────────────────┐${RESET}"
+            echo -e "  ${CYAN}│  📋 View Direct Client Logs${RESET}"
+            echo -e "  ${CYAN}│  Monitor direct client status     │${RESET}"
+            echo -e "  ${CYAN}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${YELLOW}┌─ 3 ──────────────────────────────┐${RESET}"
+            echo -e "  ${YELLOW}│  ⚙️  Manage Direct Client Ports${RESET}"
+            echo -e "  ${YELLOW}│  Add/edit/delete direct ports     │${RESET}"
+            echo -e "  ${YELLOW}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${RED}┌─ 4 ──────────────────────────────┐${RESET}"
+            echo -e "  ${RED}│  🗑️  Delete Direct Client${RESET}"
+            echo -e "  ${RED}│  Remove client and cleanup       │${RESET}"
+            echo -e "  ${RED}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${BLUE}┌─ 5 ──────────────────────────────┐${RESET}"
+            echo -e "  ${BLUE}│  ⏰ Schedule Direct Restart${RESET}"
+            echo -e "  ${BLUE}│  Set automatic restart schedule  │${RESET}"
+            echo -e "  ${BLUE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${MAGENTA}┌─ 6 ──────────────────────────────┐${RESET}"
+            echo -e "  ${MAGENTA}│  🗑️  Delete Scheduled Restart${RESET}"
+            echo -e "  ${MAGENTA}│  Remove automatic restart        │${RESET}"
+            echo -e "  ${MAGENTA}└───────────────────────────────────┘${RESET}"
+            echo ""
+            echo -e "  ${WHITE}┌─ 7 ──────────────────────────────┐${RESET}"
+            echo -e "  ${WHITE}│  ↩️  Back to Previous Menu${RESET}"
+            echo -e "  ${WHITE}│  Return to tunnel mode selection │${RESET}"
+            echo -e "  ${WHITE}└───────────────────────────────────┘${RESET}"
+            echo ""
+            draw_line "$CYAN" "-" 50
+            echo ""
+            read -p "👉 Enter your choice (1-7): " direct_client_choice
             echo ""
 
             case $direct_client_choice in
