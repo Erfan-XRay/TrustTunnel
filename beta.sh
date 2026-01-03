@@ -2187,12 +2187,12 @@ while true; do
   echo ""
 
   # Get system information
-  local server_ipv4=$(hostname -I | awk '{print $1}')
-  local rstun_status="Not Installed"
+  server_ipv4=$(hostname -I | awk '{print $1}')
+  rstun_status="Not Installed"
   if [ -f "rstun/rstund" ]; then
     rstun_status="✅ Installed"
   fi
-  local script_version="3.0.0"
+  script_version="3.0.0"
 
   echo -e "${BOLD_GREEN}📊 System Information:${RESET}"
   echo -e "  ${CYAN}🌐 Server IPv4:${RESET} ${WHITE}$server_ipv4${RESET}"
